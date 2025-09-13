@@ -5,8 +5,6 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.client.settings.KeyModifier;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
@@ -15,8 +13,6 @@ import org.lwjgl.glfw.GLFW;
 public final class ClientKeybinds {
     public static final KeyMapping QUICK_USE = new KeyMapping(
             "key." + Instantlyinteractinternally.MODID + ".quick_use",
-            KeyConflictContext.GUI,
-            KeyModifier.SHIFT,
             InputConstants.Type.MOUSE,
             GLFW.GLFW_MOUSE_BUTTON_2,
             "key.categories.gameplay"
@@ -25,5 +21,16 @@ public final class ClientKeybinds {
     @SubscribeEvent
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(QUICK_USE);
+    }
+
+    public static boolean matches(KeyMapping km, InputConstants.Key key) {
+        if (key.getType() == InputConstants.Type.KEYSYM) {
+            return km.getKey().getType() == InputConstants.Type.KEYSYM && km.getKey().getValue() == key.getValue();
+        } else if (key.getType() == InputConstants.Type.SCANCODE) {
+            return km.getKey().getType() == InputConstants.Type.SCANCODE && km.getKey().getValue() == key.getValue();
+        } else if (key.getType() == InputConstants.Type.MOUSE) {
+            return km.getKey().getType() == InputConstants.Type.MOUSE && km.getKey().getValue() == key.getValue();
+        }
+        return false;
     }
 }

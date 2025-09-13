@@ -1,6 +1,5 @@
 package com.mafuyu404.instantlyinteractinternally.network;
 
-import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
 import com.mafuyu404.instantlyinteractinternally.utils.Utils;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -66,6 +65,5 @@ public class ServerInventoryUse {
             }
         });
         ctx.get().setPacketHandled(true);
-        Instantlyinteractinternally.LOGGER.info("成功发包");
     }
 }

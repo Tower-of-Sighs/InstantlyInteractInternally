@@ -16,12 +16,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = AbstractContainerScreen.class)
-public class InventoryScreenMixin extends Screen {
+public class AbstractContainerScreenMixin extends Screen {
     @Shadow
     @Nullable
     protected Slot hoveredSlot;
 
-    protected InventoryScreenMixin(Component title) {
+    protected AbstractContainerScreenMixin(Component title) {
         super(title);
     }
 

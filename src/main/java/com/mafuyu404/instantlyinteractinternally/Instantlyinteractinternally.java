@@ -11,7 +11,7 @@ import org.slf4j.Logger;
 public class Instantlyinteractinternally {
 
     public static final String MODID = "instantlyinteractinternally";
-    private static final Logger LOGGER = LogUtils.getLogger();
+    public static final Logger LOGGER = LogUtils.getLogger();
 
     public Instantlyinteractinternally() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();

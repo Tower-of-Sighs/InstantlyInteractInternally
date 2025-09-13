@@ -1,44 +1,43 @@
 package com.mafuyu404.instantlyinteractinternally.mixin;
 
+import com.mafuyu404.instantlyinteractinternally.client.ClientKeybinds;
 import com.mafuyu404.instantlyinteractinternally.network.NetworkHandler;
-import com.mafuyu404.instantlyinteractinternally.network.ServerInteractBlock;
-import com.mafuyu404.instantlyinteractinternally.utils.BlockUtils;
-import net.minecraft.client.Minecraft;
+import com.mafuyu404.instantlyinteractinternally.network.ServerInventoryUse;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.datafix.fixes.ChunkPalettedStorageFix;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(value = InventoryScreen.class)
+@Mixin(value = AbstractContainerScreen.class)
 public class InventoryScreenMixin extends Screen {
-    protected InventoryScreenMixin(Component p_96550_) {
-        super(p_96550_);
+    @Shadow
+    @Nullable
+    protected Slot hoveredSlot;
+
+    protected InventoryScreenMixin(Component title) {
+        super(title);
     }
 
-    @Inject(method = "slotClicked", at = @At("HEAD"), cancellable = true)
-    private void betterAmmoBox(Slot slot, int index, int key, ClickType clickType, CallbackInfo ci) {
-        if (!hasShiftDown() || key != 1) return;
-        if (slot.getItem().getItem() instanceof BlockItem) {
-            Player player = Minecraft.getInstance().player;
-//            BlockUtils.interactBlockFromItem(slot.getItem(), player);
-            NetworkHandler.CHANNEL.sendToServer(new ServerInteractBlock(slot.getItem()));
-            ci.cancel();
-        }
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    private void i3_quickUseOnKey(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (!hasShiftDown() || !ClientKeybinds.QUICK_USE.matches(keyCode, scanCode)) return;
+
+        Slot slot = this.hoveredSlot;
+        if (slot == null || !slot.hasItem()) return;
+
+        ServerInventoryUse.ActionType action =
+                (slot.getItem().getItem() instanceof BlockItem)
+                        ? ServerInventoryUse.ActionType.BLOCK_INTERACT
+                        : ServerInventoryUse.ActionType.ITEM_USE;
+
+        NetworkHandler.CHANNEL.sendToServer(new ServerInventoryUse(slot.index, action));
+        cir.setReturnValue(true);
     }
 }

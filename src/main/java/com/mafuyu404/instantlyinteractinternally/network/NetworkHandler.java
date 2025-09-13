@@ -1,7 +1,6 @@
 package com.mafuyu404.instantlyinteractinternally.network;
 
 import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
-import com.mafuyu404.instantlyinteractinternally.network.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
@@ -19,7 +18,7 @@ public class NetworkHandler {
 
     public static void register() {
         int packetId = 0;
-        CHANNEL.registerMessage(packetId++, ServerInteractBlock.class, ServerInteractBlock::encode, ServerInteractBlock::decode, ServerInteractBlock::handle);
+        CHANNEL.registerMessage(packetId++, ServerInventoryUse.class, ServerInventoryUse::encode, ServerInventoryUse::decode, ServerInventoryUse::handle);
     }
 
     public static void sendToClient(ServerPlayer player, Object packet) {

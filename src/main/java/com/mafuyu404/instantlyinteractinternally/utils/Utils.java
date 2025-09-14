@@ -1,5 +1,8 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
+import com.mafuyu404.instantlyinteractinternally.utils.service.ContainerHelper;
+import com.mafuyu404.instantlyinteractinternally.utils.service.SessionService;
+import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContextRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,23 +26,16 @@ public class Utils {
     public static void interactBlockInSandbox(ItemStack stack, ServerPlayer player) {
         if (!(stack.getItem() instanceof BlockItem blockItem)) return;
 
-        FakeLevel fake = VirtualWorldManager.getOrCreateLevel(player);
+        FakeLevel fake = WorldContextRegistry.getOrCreateLevel(player);
 
-        // 如果这是空的相同方块，并且基础键已被占用，则为当前物品挂个实例标签以分配独立实例
-        var ctx = VirtualWorldManager.getContext(player);
-        if (ctx != null) {
-            boolean hasInst = stack.hasTag() && stack.getTag().hasUUID("i3_instance");
-            CompoundTag beOnItem = BlockItem.getBlockEntityData(stack);
-            boolean hasBeNbt = (beOnItem != null && !beOnItem.isEmpty());
-            if (!hasInst && !hasBeNbt) {
-                String baseKey = VirtualWorldManager.computeBaseKeyFor(stack);
-                if (ctx.keyToPos.containsKey(baseKey)) {
-                    ensureInstanceTag(stack); // 不再共用 baseKey
-                }
-            }
-        }
+        // 开启新会话前，先回写并清理旧会话
+        SessionService.flushActiveSession(player);
 
-        BlockPos pos = VirtualWorldManager.ensurePosNearPlayer(player, stack);
+        // 为当前打开的物品设置临时会话标记
+        String sessionId = UUID.randomUUID().toString();
+        stack.getOrCreateTag().putString("i3_session", sessionId);
+
+        BlockPos pos = SessionService.ensurePosForSession(player, sessionId);
 
         BlockState target = blockItem.getBlock().defaultBlockState();
         if (fake.getBlockState(pos).getBlock() != target.getBlock()) {
@@ -47,8 +43,9 @@ public class Utils {
         }
 
         var be = fake.getBlockEntity(pos);
-        if (be != null && VirtualWorldManager.isContainerEmpty(be)
-                && VirtualWorldManager.isContainerLike(be)) {
+        if (be != null
+                && ContainerHelper.isContainerEmpty(be)
+                && ContainerHelper.isContainerLike(be)) {
             applyBlockEntityTagToBE(stack, be, pos);
         }
 
@@ -67,7 +64,8 @@ public class Utils {
             return;
         }
 
-        VirtualContainerGuard.begin(player);
+        // 用带位置信息的会话开始
+        SessionService.beginSession(player, sessionId, pos);
         player.openMenu(provider);
     }
 
@@ -188,13 +186,14 @@ public class Utils {
         return true;
     }
 
-    public static boolean ensureInstanceTag(ItemStack stack) {
-        var tag = stack.getOrCreateTag();
-        if (!tag.contains("i3_instance")) {
-            tag.putUUID("i3_instance", UUID.randomUUID());
-            return true;
+    public static void clearPendingBind(ItemStack stack) {
+        var tag = stack.getTag();
+        if (tag == null) return;
+        tag.remove("i3_pending_bind");
+        tag.remove("i3_pending_key");
+        if (tag.isEmpty()) {
+            stack.setTag(null);
         }
-        return false;
     }
 
     public static void writeBlockEntityTagToItem(BlockEntity be, ItemStack stack) {
@@ -223,15 +222,6 @@ public class Utils {
         var tag = stack.getTag();
         if (tag == null) return;
         tag.remove("BlockEntityTag");
-        if (tag.isEmpty()) {
-            stack.setTag(null);
-        }
-    }
-
-    public static void clearPerInstanceTag(ItemStack stack) {
-        var tag = stack.getTag();
-        if (tag == null) return;
-        tag.remove("i3_instance");
         if (tag.isEmpty()) {
             stack.setTag(null);
         }

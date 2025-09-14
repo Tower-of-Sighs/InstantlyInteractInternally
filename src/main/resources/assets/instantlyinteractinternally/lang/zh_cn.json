@@ -1,3 +1,4 @@
 {
-  "key.instantlyinteractinternally.quick_use": "快速使用"
+  "key.instantlyinteractinternally.quick_use": "快速使用",
+  "message.instantlyinteractinternally.same_container_blocked": "已打开相同类型的容器，阻止重复打开。"
 }

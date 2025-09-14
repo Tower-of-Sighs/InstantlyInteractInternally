@@ -1,3 +1,4 @@
 {
-  "key.instantlyinteractinternally.quick_use": "Quick Use"
+  "key.instantlyinteractinternally.quick_use": "Quick Use",
+  "message.instantlyinteractinternally.same_container_blocked": "Already interacting with the same container type."
 }

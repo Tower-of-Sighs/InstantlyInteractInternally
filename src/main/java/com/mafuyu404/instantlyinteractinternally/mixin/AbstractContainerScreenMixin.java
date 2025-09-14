@@ -7,9 +7,11 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.BlockItem;
 import org.jetbrains.annotations.Nullable;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,8 +20,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = AbstractContainerScreen.class)
 public class AbstractContainerScreenMixin extends Screen {
-    @Shadow @Nullable
+    @Shadow
+    @Nullable
     protected Slot hoveredSlot;
+    @Final
+    @Shadow
+    protected AbstractContainerMenu menu;
 
     protected AbstractContainerScreenMixin(Component title) {
         super(title);
@@ -29,7 +35,6 @@ public class AbstractContainerScreenMixin extends Screen {
         if (!hasShiftDown() || !ClientKeybinds.matches(ClientKeybinds.QUICK_USE, key)) {
             return false;
         }
-
         Slot slot = this.hoveredSlot;
         if (slot == null || !slot.hasItem()) return false;
 

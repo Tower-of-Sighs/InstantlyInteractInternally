@@ -1,6 +1,7 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
 import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
+import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -17,18 +18,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-final class VirtualWorldStorage {
+public final class VirtualWorldStorage {
 
     private VirtualWorldStorage() {
     }
 
-    record StoredEntry(String key, String blockId, CompoundTag beTag) {
+    public record StoredEntry(String key, String blockId, CompoundTag beTag) {
     }
 
-    record StoredContext(List<StoredEntry> entries, int nextIndex) {
+    public record StoredContext(List<StoredEntry> entries, int nextIndex) {
     }
 
-    static void save(MinecraftServer server, UUID playerId, VirtualWorldManager.Context ctx) {
+    public static void save(MinecraftServer server, UUID playerId, WorldContext ctx) {
         try {
             Path file = resolveFile(server, playerId);
             Files.createDirectories(file.getParent());
@@ -67,7 +68,7 @@ final class VirtualWorldStorage {
         }
     }
 
-    static StoredContext load(MinecraftServer server, UUID playerId) {
+    public static StoredContext load(MinecraftServer server, UUID playerId) {
         try {
             Path file = resolveFile(server, playerId);
             if (!Files.exists(file)) return null;

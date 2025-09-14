@@ -14,6 +14,7 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
 import java.util.UUID;
@@ -36,8 +37,18 @@ public class Utils {
             applyBlockEntityTagToBE(stack, be, pos);
         }
 
+        ClipContext clipContext = new ClipContext(
+                player.position(),
+                pos.getCenter(),
+                ClipContext.Block.OUTLINE,
+                ClipContext.Fluid.NONE,
+                null
+        );
+        BlockHitResult traceResult = fake.clip(clipContext);
+
         MenuProvider provider = target.getMenuProvider(fake, pos);
         if (provider == null) {
+            InteractionResult result = target.use(fake, player, InteractionHand.MAIN_HAND, traceResult);
             return;
         }
 

@@ -25,6 +25,20 @@ public class Utils {
 
         FakeLevel fake = VirtualWorldManager.getOrCreateLevel(player);
 
+        // 如果这是空的相同方块，并且基础键已被占用，则为当前物品挂个实例标签以分配独立实例
+        var ctx = VirtualWorldManager.getContext(player);
+        if (ctx != null) {
+            boolean hasInst = stack.hasTag() && stack.getTag().hasUUID("i3_instance");
+            CompoundTag beOnItem = BlockItem.getBlockEntityData(stack);
+            boolean hasBeNbt = (beOnItem != null && !beOnItem.isEmpty());
+            if (!hasInst && !hasBeNbt) {
+                String baseKey = VirtualWorldManager.computeBaseKeyFor(stack);
+                if (ctx.keyToPos.containsKey(baseKey)) {
+                    ensureInstanceTag(stack); // 不再共用 baseKey
+                }
+            }
+        }
+
         BlockPos pos = VirtualWorldManager.ensurePosNearPlayer(player, stack);
 
         BlockState target = blockItem.getBlock().defaultBlockState();
@@ -33,7 +47,8 @@ public class Utils {
         }
 
         var be = fake.getBlockEntity(pos);
-        if (be != null && VirtualWorldManager.isContainerEmpty(be)) {
+        if (be != null && VirtualWorldManager.isContainerEmpty(be)
+                && VirtualWorldManager.isContainerLike(be)) {
             applyBlockEntityTagToBE(stack, be, pos);
         }
 

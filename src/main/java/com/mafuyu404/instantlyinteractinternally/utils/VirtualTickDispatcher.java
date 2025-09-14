@@ -133,6 +133,7 @@ public class VirtualTickDispatcher {
             for (Map.Entry<String, BlockPos> entry : toClear) {
                 String key = entry.getKey();
                 VirtualWorldManager.clearInstanceTagFromInventory(sp, key);
+                ctx.keyToPos.remove(key);
             }
 
             // 批量重映射 key -> pos，保持位置绑定持续有效

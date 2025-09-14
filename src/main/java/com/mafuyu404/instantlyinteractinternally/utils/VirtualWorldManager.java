@@ -82,10 +82,16 @@ public final class VirtualWorldManager {
         if (stack.getItem() instanceof BlockItem bi) {
             ResourceLocation id = ForgeRegistries.BLOCKS.getKey(bi.getBlock());
             var tag = stack.getTag();
-            String inst = (tag != null && tag.hasUUID("i3_instance"))
-                    ? tag.getUUID("i3_instance").toString()
-                    : "noinst";
-            return id + "#" + inst;
+            if (tag != null && tag.hasUUID("i3_instance")) {
+                return id + "#" + tag.getUUID("i3_instance");
+            }
+            CompoundTag beTag = BlockItem.getBlockEntityData(stack);
+            if (beTag != null && !beTag.isEmpty()) {
+                int h = beTag.toString().hashCode();
+                String hex = Integer.toHexString(h);
+                return id + "#nbt:" + hex;
+            }
+            return id + "#noinst";
         }
         return stack.getItem().toString();
     }
@@ -188,9 +194,17 @@ public final class VirtualWorldManager {
                 if (!handler.getStackInSlot(i).isEmpty()) return false;
             }
             return true;
-        }).orElse(false);
+        }).orElse(true);
     }
 
+    public static boolean isContainerLike(BlockEntity be) {
+        if (be instanceof Container) return true;
+        return hasItemHandler(be);
+    }
+
+    private static boolean hasItemHandler(BlockEntity be) {
+        return be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).isPresent();
+    }
     public static void clearInstanceTagFromInventory(ServerPlayer sp, String key) {
         var inv = sp.getInventory();
 

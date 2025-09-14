@@ -1,6 +1,7 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -11,6 +12,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.HitResult;
 
@@ -20,8 +22,6 @@ public class Utils {
     public static void interactBlockInSandbox(ItemStack stack, ServerPlayer player) {
         if (!(stack.getItem() instanceof BlockItem blockItem)) return;
 
-        ensurePerInstanceTag(stack);
-
         FakeLevel fake = VirtualWorldManager.getOrCreateLevel(player);
 
         BlockPos pos = VirtualWorldManager.ensurePosNearPlayer(player, stack);
@@ -29,6 +29,11 @@ public class Utils {
         BlockState target = blockItem.getBlock().defaultBlockState();
         if (fake.getBlockState(pos).getBlock() != target.getBlock()) {
             fake.putBlock(pos, target);
+        }
+
+        var be = fake.getBlockEntity(pos);
+        if (be != null && VirtualWorldManager.isContainerEmpty(be)) {
+            applyBlockEntityTagToBE(stack, be, pos);
         }
 
         MenuProvider provider = target.getMenuProvider(fake, pos);
@@ -157,10 +162,43 @@ public class Utils {
         return true;
     }
 
-    private static void ensurePerInstanceTag(ItemStack stack) {
+    public static boolean ensureInstanceTag(ItemStack stack) {
         var tag = stack.getOrCreateTag();
         if (!tag.contains("i3_instance")) {
             tag.putUUID("i3_instance", UUID.randomUUID());
+            return true;
+        }
+        return false;
+    }
+
+    public static void writeBlockEntityTagToItem(BlockEntity be, ItemStack stack) {
+        CompoundTag full = be.saveWithFullMetadata();
+        if (full == null) return;
+
+        full.remove("x");
+        full.remove("y");
+        full.remove("z");
+
+        stack.getOrCreateTag().put("BlockEntityTag", full);
+    }
+
+    public static void applyBlockEntityTagToBE(ItemStack stack, BlockEntity be, BlockPos pos) {
+        CompoundTag beTag = BlockItem.getBlockEntityData(stack);
+        if (beTag == null) return;
+        CompoundTag copy = beTag.copy();
+        copy.putInt("x", pos.getX());
+        copy.putInt("y", pos.getY());
+        copy.putInt("z", pos.getZ());
+        be.load(copy);
+        be.setChanged();
+    }
+
+    public static void clearBlockEntityTag(ItemStack stack) {
+        var tag = stack.getTag();
+        if (tag == null) return;
+        tag.remove("BlockEntityTag");
+        if (tag.isEmpty()) {
+            stack.setTag(null);
         }
     }
 

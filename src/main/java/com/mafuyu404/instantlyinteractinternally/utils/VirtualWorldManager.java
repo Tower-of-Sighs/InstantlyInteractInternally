@@ -81,8 +81,19 @@ public final class VirtualWorldManager {
     public static String computeKeyFor(ItemStack stack) {
         if (stack.getItem() instanceof BlockItem bi) {
             ResourceLocation id = ForgeRegistries.BLOCKS.getKey(bi.getBlock());
-            int tagHash = stack.hasTag() ? stack.getTag().hashCode() : 0;
-            return id + "#" + tagHash;
+            var tag = stack.getTag();
+            String inst = (tag != null && tag.hasUUID("i3_instance"))
+                    ? tag.getUUID("i3_instance").toString()
+                    : "noinst";
+            return id + "#" + inst;
+        }
+        return stack.getItem().toString();
+    }
+
+    public static String computeBaseKeyFor(ItemStack stack) {
+        if (stack.getItem() instanceof BlockItem bi) {
+            ResourceLocation id = ForgeRegistries.BLOCKS.getKey(bi.getBlock());
+            return id + "#noinst";
         }
         return stack.getItem().toString();
     }
@@ -188,6 +199,7 @@ public final class VirtualWorldManager {
             if (s.isEmpty()) continue;
             if (key.equals(computeKeyFor(s))) {
                 Utils.clearPerInstanceTag(s);
+                Utils.clearBlockEntityTag(s);
                 inv.setChanged();
             }
         }
@@ -196,6 +208,7 @@ public final class VirtualWorldManager {
             if (s.isEmpty()) continue;
             if (key.equals(computeKeyFor(s))) {
                 Utils.clearPerInstanceTag(s);
+                Utils.clearBlockEntityTag(s);
                 inv.setChanged();
             }
         }

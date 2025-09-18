@@ -1,4 +1,5 @@
 {
   "key.instantlyinteractinternally.quick_use": "Quick Use",
-  "message.instantlyinteractinternally.same_container_blocked": "Already interacting with the same container type."
+  "message.instantlyinteractinternally.same_container_blocked": "Already interacting with the same container type.",
+  "iii.open_multiple_block_denied": "Unable to open multiple blocks"
 }

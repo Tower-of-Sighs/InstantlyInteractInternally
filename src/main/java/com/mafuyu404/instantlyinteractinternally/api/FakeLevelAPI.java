@@ -179,7 +179,6 @@ public final class FakeLevelAPI {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public static <T> T getAttachment(ServerPlayer player, BlockPos pos, ResourceLocation key) {
         var ctx = WorldContextRegistry.getContext(player);
         if (ctx == null || pos == null || key == null) return null;

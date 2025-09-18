@@ -1,10 +1,13 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
+import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
 import com.mafuyu404.instantlyinteractinternally.utils.service.ContainerHelper;
 import com.mafuyu404.instantlyinteractinternally.utils.service.SessionService;
 import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContextRegistry;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -26,26 +29,34 @@ public class Utils {
     public static void interactBlockInSandbox(ItemStack stack, ServerPlayer player) {
         if (!(stack.getItem() instanceof BlockItem blockItem)) return;
 
+        Instantlyinteractinternally.LOGGER.debug("[I3I] interactBlockInSandbox begin: player={}, item={}, count={}",
+                player.getGameProfile().getName(), stack.getItem(), stack.getCount());
+
+        if (stack.getCount() > 1) {
+            player.displayClientMessage(Component.translatable("iii.open_multiple_block_denied").withStyle(ChatFormatting.RED), true);
+            Instantlyinteractinternally.LOGGER.info("[I3I] deny open: stacked container item. player={}, item={}, count={}",
+                    player.getGameProfile().getName(), stack.getItem(), stack.getCount());
+            return;
+        }
         FakeLevel fake = WorldContextRegistry.getOrCreateLevel(player);
 
-        // 开启新会话前，先回写并清理旧会话
         SessionService.flushActiveSession(player);
 
-        // 为当前打开的物品设置临时会话标记
-        String sessionId = UUID.randomUUID().toString();
-        stack.getOrCreateTag().putString("i3_session", sessionId);
-
+        String sessionId = java.util.UUID.randomUUID().toString();
         BlockPos pos = SessionService.ensurePosForSession(player, sessionId);
+        Instantlyinteractinternally.LOGGER.debug("[I3I] session allocated: player={}, session={}, pos={}", player.getGameProfile().getName(), sessionId, pos);
 
         BlockState target = blockItem.getBlock().defaultBlockState();
         if (fake.getBlockState(pos).getBlock() != target.getBlock()) {
             fake.putBlock(pos, target);
+            Instantlyinteractinternally.LOGGER.debug("[I3I] fake block placed: player={}, session={}, state={}", player.getGameProfile().getName(), sessionId, target);
         }
 
         var be = fake.getBlockEntity(pos);
         if (be != null
                 && ContainerHelper.isContainerEmpty(be)
                 && ContainerHelper.isContainerLike(be)) {
+            Instantlyinteractinternally.LOGGER.debug("[I3I] applying Item->BE tag: player={}, session={}, pos={}", player.getGameProfile().getName(), sessionId, pos);
             applyBlockEntityTagToBE(stack, be, pos);
         }
 
@@ -60,12 +71,15 @@ public class Utils {
 
         MenuProvider provider = target.getMenuProvider(fake, pos);
         if (provider == null) {
+            Instantlyinteractinternally.LOGGER.debug("[I3I] no MenuProvider, calling block.use. player={}, session={}", player.getGameProfile().getName(), sessionId);
             InteractionResult result = target.use(fake, player, InteractionHand.MAIN_HAND, traceResult);
             return;
         }
 
-        // 用带位置信息的会话开始
+        stack.getOrCreateTag().putString("i3_session", sessionId);
+
         SessionService.beginSession(player, sessionId, pos);
+        Instantlyinteractinternally.LOGGER.info("[I3I] opening menu: player={}, session={}, pos={}", player.getGameProfile().getName(), sessionId, pos);
         player.openMenu(provider);
     }
 
@@ -216,6 +230,8 @@ public class Utils {
         copy.putInt("z", pos.getZ());
         be.load(copy);
         be.setChanged();
+
+        clearBlockEntityTag(stack);
     }
 
     public static void clearBlockEntityTag(ItemStack stack) {

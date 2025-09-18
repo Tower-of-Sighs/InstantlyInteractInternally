@@ -444,73 +444,98 @@ public class FakeLevel extends Level {
         };
     }
 
-    private record Snapshot(Map<BlockPos, BlockState> blocks, Map<BlockPos, CompoundTag> bes,
-                            Map<BlockPos, Map<ResourceLocation, Object>> attachments,
-                            Map<BlockPos, FakeLevelAPI.ISidedItemAccess> sided,
-                            Map<BlockPos, Map<Capability<?>, EnumMap<Direction, LazyOptional<?>>>> caps,
-                            List<ScheduledTask> scheduledCopy) {
+    private record Snapshot(
+            Map<BlockPos, BlockState> blocks,
+            Map<BlockPos, CompoundTag> bes,
+            Map<BlockPos, Map<ResourceLocation, Object>> attachments,
+            Map<BlockPos, FakeLevelAPI.ISidedItemAccess> sided,
+            Map<BlockPos, Map<Capability<?>, EnumMap<Direction, LazyOptional<?>>>> caps,
+            List<ScheduledTask> scheduledCopy
+    ) {
+
+        private static <K, V, W> Map<K, Map<V, W>> deepCopyMapOfMaps(Map<K, Map<V, W>> original) {
+            Map<K, Map<V, W>> copy = new HashMap<>();
+            for (var entry : original.entrySet()) {
+                copy.put(entry.getKey(), new HashMap<>(entry.getValue()));
+            }
+            return copy;
+        }
+
+        private static <K, C, T> Map<K, Map<C, EnumMap<Direction, T>>> deepCopyMapOfEnumMaps(Map<K, Map<C, EnumMap<Direction, T>>> original) {
+            Map<K, Map<C, EnumMap<Direction, T>>> copy = new HashMap<>();
+            for (var entry : original.entrySet()) {
+                Map<C, EnumMap<Direction, T>> innerCopy = new HashMap<>();
+                for (var innerEntry : entry.getValue().entrySet()) {
+                    innerCopy.put(innerEntry.getKey(), new EnumMap<>(innerEntry.getValue()));
+                }
+                copy.put(entry.getKey(), innerCopy);
+            }
+            return copy;
+        }
+
+        private static List<ScheduledTask> copyScheduledTasks(List<ScheduledTask> tasks) {
+            List<ScheduledTask> copy = new ArrayList<>(tasks.size());
+            for (var task : tasks) {
+                copy.add(task.copy());
+            }
+            return copy;
+        }
 
         static Snapshot capture(FakeLevel level) {
-            Map<BlockPos, BlockState> blocksCopy = new HashMap<>(level.blocks);
-            Map<BlockPos, CompoundTag> beCopy = new HashMap<>();
-            for (var e : level.blockEntities.entrySet()) {
-                beCopy.put(e.getKey(), e.getValue().saveWithFullMetadata());
+            return new Snapshot(
+                    new HashMap<>(level.blocks),
+                    copyBlockEntities(level.blockEntities),
+                    deepCopyMapOfMaps(level.attachments),
+                    new HashMap<>(level.sidedAccess),
+                    deepCopyMapOfEnumMaps(level.capabilities),
+                    copyScheduledTasks(level.scheduledTasks)
+            );
+        }
+
+
+        private static Map<BlockPos, CompoundTag> copyBlockEntities(Map<BlockPos, BlockEntity> blockEntities) {
+            Map<BlockPos, CompoundTag> copy = new HashMap<>();
+            for (var entry : blockEntities.entrySet()) {
+                copy.put(entry.getKey(), entry.getValue().saveWithFullMetadata());
             }
-            Map<BlockPos, Map<ResourceLocation, Object>> attCopy = new HashMap<>();
-            for (var e : level.attachments.entrySet()) {
-                attCopy.put(e.getKey(), new HashMap<>(e.getValue()));
-            }
-            Map<BlockPos, FakeLevelAPI.ISidedItemAccess> sidedCopy = new HashMap<>(level.sidedAccess);
-            Map<BlockPos, Map<Capability<?>, EnumMap<Direction, LazyOptional<?>>>> capCopy = new HashMap<>();
-            for (var e : level.capabilities.entrySet()) {
-                Map<Capability<?>, EnumMap<Direction, LazyOptional<?>>> inner = new HashMap<>();
-                for (var c : e.getValue().entrySet()) {
-                    inner.put(c.getKey(), new EnumMap<>(c.getValue()));
-                }
-                capCopy.put(e.getKey(), inner);
-            }
-            List<ScheduledTask> schedCopy = new ArrayList<>();
-            for (var t : level.scheduledTasks) schedCopy.add(t.copy());
-            return new Snapshot(blocksCopy, beCopy, attCopy, sidedCopy, capCopy, schedCopy);
+            return copy;
         }
 
         void restore(FakeLevel level) {
-            // 恢复 blocks
             level.blocks.clear();
             level.blocks.putAll(this.blocks);
 
-            // 恢复 blockEntities
+            restoreBlockEntities(level);
+
+            level.attachments.clear();
+            level.attachments.putAll(deepCopyMapOfMaps(this.attachments));
+
+            level.sidedAccess.clear();
+            level.sidedAccess.putAll(this.sided);
+
+            level.capabilities.clear();
+            level.capabilities.putAll(deepCopyMapOfEnumMaps(this.caps));
+
+            level.scheduledTasks.clear();
+            level.scheduledTasks.addAll(copyScheduledTasks(this.scheduledCopy));
+        }
+
+        private void restoreBlockEntities(FakeLevel level) {
             level.blockEntities.clear();
-            for (var e : this.bes.entrySet()) {
-                BlockPos pos = e.getKey();
-                BlockState st = level.blocks.get(pos);
-                if (st == null) continue;
-                BlockEntity be = BlockEntity.loadStatic(pos, st, e.getValue());
-                if (be == null && st.getBlock() instanceof BaseEntityBlock beb) {
-                    be = beb.newBlockEntity(pos, st);
+            for (var entry : this.bes.entrySet()) {
+                BlockPos pos = entry.getKey();
+                BlockState state = level.blocks.get(pos);
+                if (state == null) continue;
+
+                BlockEntity be = BlockEntity.loadStatic(pos, state, entry.getValue());
+                if (be == null && state.getBlock() instanceof BaseEntityBlock beb) {
+                    be = beb.newBlockEntity(pos, state);
                 }
                 if (be != null) {
                     be.setLevel(level);
                     level.blockEntities.put(pos, be);
                 }
             }
-            // 恢复附件、侧向访问、能力与调度
-            level.attachments.clear();
-            for (var e : this.attachments.entrySet()) {
-                level.attachments.put(e.getKey(), new HashMap<>(e.getValue()));
-            }
-            level.sidedAccess.clear();
-            level.sidedAccess.putAll(this.sided);
-            level.capabilities.clear();
-            for (var e : this.caps.entrySet()) {
-                Map<Capability<?>, EnumMap<Direction, LazyOptional<?>>> inner = new HashMap<>();
-                for (var c : e.getValue().entrySet()) {
-                    inner.put(c.getKey(), new EnumMap<>(c.getValue()));
-                }
-                level.capabilities.put(e.getKey(), inner);
-            }
-            level.scheduledTasks.clear();
-            for (var t : this.scheduledCopy) level.scheduledTasks.add(t.copy());
         }
     }
 

@@ -12,6 +12,13 @@ public class Instantlyinteractinternally {
 
     public static final String MODID = "instantlyinteractinternally";
     public static final Logger LOGGER = LogUtils.getLogger();
+    public static boolean DEBUG = true;
+
+    public static void debug(String fmt, Object... args) {
+        if (DEBUG) {
+            LOGGER.info(fmt, args);
+        }
+    }
 
     public Instantlyinteractinternally() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();

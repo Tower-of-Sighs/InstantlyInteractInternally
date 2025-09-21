@@ -1,6 +1,5 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
-import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
 import com.mafuyu404.instantlyinteractinternally.utils.service.ContainerHelper;
 import com.mafuyu404.instantlyinteractinternally.utils.service.SessionService;
 import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContextRegistry;
@@ -14,6 +13,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.context.UseOnContext;
@@ -29,36 +29,26 @@ public class Utils {
     public static void interactBlockInSandbox(ItemStack stack, ServerPlayer player) {
         if (!(stack.getItem() instanceof BlockItem blockItem)) return;
 
-        Instantlyinteractinternally.LOGGER.debug("[I3I] interactBlockInSandbox begin: player={}, item={}, count={}",
-                player.getGameProfile().getName(), stack.getItem(), stack.getCount());
-
         if (stack.getCount() > 1) {
             player.displayClientMessage(Component.translatable("iii.open_multiple_block_denied").withStyle(ChatFormatting.RED), true);
-            Instantlyinteractinternally.LOGGER.info("[I3I] deny open: stacked container item. player={}, item={}, count={}",
-                    player.getGameProfile().getName(), stack.getItem(), stack.getCount());
             return;
         }
+
         FakeLevel fake = WorldContextRegistry.getOrCreateLevel(player);
 
-        SessionService.flushActiveSession(player);
+        // 仅在非嵌套打开时才清理上一个活动会话
+        if (!isNestedOpen(player)) {
+            SessionService.flushActiveSession(player);
+        }
 
-        String sessionId = java.util.UUID.randomUUID().toString();
+        String sessionId = UUID.randomUUID().toString();
         BlockPos pos = SessionService.ensurePosForSession(player, sessionId);
-        Instantlyinteractinternally.LOGGER.debug("[I3I] session allocated: player={}, session={}, pos={}", player.getGameProfile().getName(), sessionId, pos);
 
         BlockState target = blockItem.getBlock().defaultBlockState();
-        if (fake.getBlockState(pos).getBlock() != target.getBlock()) {
-            fake.putBlock(pos, target);
-            Instantlyinteractinternally.LOGGER.debug("[I3I] fake block placed: player={}, session={}, state={}", player.getGameProfile().getName(), sessionId, target);
-        }
+        ensureFakeBlockPlaced(fake, pos, target);
 
         var be = fake.getBlockEntity(pos);
-        if (be != null
-                && ContainerHelper.isContainerEmpty(be)
-                && ContainerHelper.isContainerLike(be)) {
-            Instantlyinteractinternally.LOGGER.debug("[I3I] applying Item->BE tag: player={}, session={}, pos={}", player.getGameProfile().getName(), sessionId, pos);
-            applyBlockEntityTagToBE(stack, be, pos);
-        }
+        preloadBeIfNeeded(stack, be, pos);
 
         ClipContext clipContext = new ClipContext(
                 player.position(),
@@ -69,18 +59,47 @@ public class Utils {
         );
         BlockHitResult traceResult = fake.clip(clipContext);
 
-        MenuProvider provider = target.getMenuProvider(fake, pos);
+        MenuProvider provider = tryGetProviderOrUse(target, fake, player, traceResult);
         if (provider == null) {
-            Instantlyinteractinternally.LOGGER.debug("[I3I] no MenuProvider, calling block.use. player={}, session={}", player.getGameProfile().getName(), sessionId);
-            InteractionResult result = target.use(fake, player, InteractionHand.MAIN_HAND, traceResult);
             return;
         }
 
         stack.getOrCreateTag().putString("i3_session", sessionId);
+        VirtualContainerGuard.setSuppressCloseSession(player, sessionId);
 
         SessionService.beginSession(player, sessionId, pos);
-        Instantlyinteractinternally.LOGGER.info("[I3I] opening menu: player={}, session={}, pos={}", player.getGameProfile().getName(), sessionId, pos);
         player.openMenu(provider);
+    }
+
+    private static boolean isNestedOpen(ServerPlayer player) {
+        var currentMenu = player.containerMenu;
+        return currentMenu != null && !(currentMenu instanceof InventoryMenu);
+    }
+
+    private static void ensureFakeBlockPlaced(FakeLevel fake, BlockPos pos, BlockState target) {
+        if (fake.getBlockState(pos).getBlock() != target.getBlock()) {
+            fake.putBlock(pos, target);
+        }
+    }
+
+    private static void preloadBeIfNeeded(ItemStack stack, BlockEntity be, BlockPos pos) {
+        if (be != null
+                && ContainerHelper.isContainerEmpty(be)
+                && ContainerHelper.isContainerLike(be)) {
+            applyBlockEntityTagToBE(stack, be, pos);
+        }
+    }
+
+    private static MenuProvider tryGetProviderOrUse(BlockState target,
+                                                    FakeLevel fake,
+                                                    ServerPlayer player,
+                                                    BlockHitResult traceResult) {
+        MenuProvider provider = target.getMenuProvider(fake, player.blockPosition());
+        if (provider == null) {
+            InteractionResult result = target.use(fake, player, InteractionHand.MAIN_HAND, traceResult);
+            return null;
+        }
+        return provider;
     }
 
     public static void consumeItemInstant(Slot slot, ServerPlayer player) {

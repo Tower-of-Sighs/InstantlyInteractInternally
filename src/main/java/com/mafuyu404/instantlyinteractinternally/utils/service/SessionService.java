@@ -63,71 +63,138 @@ public final class SessionService {
         flushActiveSession(sp, true);
     }
 
-    private static final class SessionCtx {
-        final ServerPlayer sp;
-        final VirtualContainerGuard.Session sess;
-        final String sessionId;
-        final BlockEntity be;
-        final AbstractContainerMenu preferMenu;
-
-        SessionCtx(ServerPlayer sp, VirtualContainerGuard.Session sess, BlockEntity be) {
-            this.sp = sp;
-            this.sess = sess;
-            this.sessionId = sess.sessionId;
-            this.be = be;
-            this.preferMenu = sess.parentContainer;
-        }
-    }
-
-    private static SessionCtx resolveSessionCtx(ServerPlayer sp) {
+    // finalize=true：完全刷盘（写回后移除 i3_session 与映射）；finalize=false：部分刷盘（写回但保留 i3_session 与映射）
+    public static void flushActiveSession(ServerPlayer sp, boolean finalize) {
+        // 只针对子会话进行刷盘，避免拿到父容器占位符
         var sess = VirtualContainerGuard.getTopItemSession(sp);
-        if (sess == null) return null;
+        if (sess == null) return;
 
         WorldContextRegistry.maybeLoadContext(sp);
         var ctx = WorldContextRegistry.getContext(sp);
         if (ctx == null) {
             VirtualContainerGuard.endCurrentSession(sp);
-            return null;
+            return;
         }
-        var pos = ctx.sessionToPos.get(sess.sessionId);
-        if (pos == null) return null;
 
-        var be = ctx.level.getBlockEntity(pos);
-        return new SessionCtx(sp, sess, be);
+        String sessionId = sess.sessionId;
+        BlockPos pos = ctx.sessionToPos.get(sessionId);
+        BlockEntity be = null;
+        if (pos != null) {
+            be = ctx.level.getBlockEntity(pos);
+        }
+
+        AbstractContainerMenu preferMenu = sess.parentContainer;
+        boolean wrote;
+        ItemStack usedStack;
+
+        // 路径1：父容器菜单中精确 Slot 写回
+        var slotResult = tryWriteViaPreferSlot(be, preferMenu, sessionId);
+        wrote = slotResult.wrote;
+        usedStack = slotResult.stack;
+
+        // 路径2：玩家/当前或父菜单定位 Stack 写回
+        if (!wrote) {
+            var stackResult = tryWriteViaLocatedStack(sp, be, preferMenu, sessionId);
+            wrote = stackResult.wrote;
+            usedStack = stackResult.stack;
+        }
+
+        // 路径3：直接扫描方块实体真实库存写回（父容器已关闭或前两条失败）
+        if (!wrote) {
+            var beResult = tryWriteViaBEInventory(be, sessionId);
+            wrote = beResult.wrote;
+            usedStack = beResult.stack;
+        }
+
+        // 无库存菜单：没有写回动作，但依然需要 finalize 时清理标签与映射
+        if (!wrote && be != null && !ContainerHelper.isContainerLike(be)) {
+            Instantlyinteractinternally.debug("[SS] 目标方块不含库存，sid={} 仅做会话清理", sessionId);
+        }
+
+        // finalize 后统一清理标签与映射（若能定位到栈则移除标签；无论是否定位到栈，均移除映射）
+        if (finalize) {
+            if (!usedStack.isEmpty()) {
+                removeSessionTag(usedStack);
+            } else {
+                // 未定位到栈：在玩家/父菜单/当前菜单里再查一次以清理标签
+                ItemStack fallback = findStackBySession(sp, sessionId, preferMenu);
+                if (!fallback.isEmpty()) {
+                    removeSessionTag(fallback);
+                }
+            }
+            ctx.sessionToPos.remove(sessionId);
+            Instantlyinteractinternally.debug("[SS] 完成最终刷盘：移除 sid={} 的映射与标签（若有）", sessionId);
+
+            // 结束当前子会话
+            VirtualContainerGuard.endCurrentSession(sp);
+            // 若栈顶是一个父容器会话占位符，且该容器并非当前打开的 GUI，则清理掉占位
+            var top = VirtualContainerGuard.getSession(sp);
+            if (top != null && top.isContainerSession) {
+                if (sp.containerMenu != top.containerMenu) {
+                    Instantlyinteractinternally.debug("[SS] finalize 后清理失效父容器占位 menu={}",
+                            top.containerMenu != null ? top.containerMenu.getClass().getSimpleName() : "null");
+                    VirtualContainerGuard.endCurrentSession(sp);
+                }
+            }
+        }
+
+        scheduleForPlayer(sp, () -> sp.containerMenu.broadcastChanges(), "ui/refresh", 0, 1, true);
     }
 
-    private static void removeSessionMapping(ServerPlayer sp, String sid) {
-        var ctx = WorldContextRegistry.getContext(sp);
-        if (ctx != null) {
-            ctx.sessionToPos.remove(sid);
+    // 路径1：父容器菜单中精确 Slot 写回并标脏
+    private static WriteBackResult tryWriteViaPreferSlot(BlockEntity be, AbstractContainerMenu preferMenu, String sessionId) {
+        WriteBackResult res = new WriteBackResult();
+        if (be == null || !ContainerHelper.isContainerLike(be)) return res;
+        Slot preferSlot = findSlotWithSessionInContainer(preferMenu, sessionId);
+        if (preferSlot == null) return res;
+
+        ItemStack s = preferSlot.getItem();
+        boolean empty = ContainerHelper.isContainerEmpty(be);
+        if (!empty) {
+            Utils.writeBlockEntityTagToItem(be, s);
+            Instantlyinteractinternally.debug("[SS] [Slot] 写入 BlockEntityTag sid={} empty=false", sessionId);
+        } else {
+            Utils.clearBlockEntityTag(s);
+            Instantlyinteractinternally.debug("[SS] [Slot] 清除 BlockEntityTag sid={} empty=true", sessionId);
         }
+
+        preferSlot.setChanged();
+        if (preferSlot.container != null) {
+            preferSlot.container.setChanged();
+        }
+        res.wrote = true;
+        res.stack = s;
+        return res;
     }
 
-    private static void finalizeTagAndMaybeClearMapping(SessionCtx sc, ItemStack s, boolean finalize) {
-        if (!finalize) return;
-        var tag = s.getTag();
-        if (tag != null) {
-            tag.remove("i3_session");
-            if (tag.isEmpty()) s.setTag(null);
-        }
-        removeSessionMapping(sc.sp, sc.sessionId);
-        Instantlyinteractinternally.debug("[SS] 完成最终刷盘：移除 sid={} 的映射与标签", sc.sessionId);
-    }
+    // 路径2：定位到 Stack 写回（玩家背包/当前或父菜单），并尽力标脏
+    private static WriteBackResult tryWriteViaLocatedStack(ServerPlayer sp, BlockEntity be, AbstractContainerMenu preferMenu, String sessionId) {
+        WriteBackResult res = new WriteBackResult();
+        if (be == null || !ContainerHelper.isContainerLike(be)) return res;
 
-    private static void markDirtySlot(Slot slot) {
-        if (slot == null) return;
-        slot.setChanged();
-        if (slot.container != null) {
-            slot.container.setChanged();
-        }
-    }
+        ItemStack stack = findStackBySession(sp, sessionId, preferMenu);
+        Instantlyinteractinternally.debug("[SS] [Stack] sid={} preferMenu={} foundStack={}",
+                sessionId, preferMenu != null ? preferMenu.getClass().getSimpleName() : "null", !stack.isEmpty());
 
-    private static void markDirtyPreferMenuOrInv(ServerPlayer sp, AbstractContainerMenu preferMenu, ItemStack stack) {
+        if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem)) {
+            return res;
+        }
+
+        boolean empty = ContainerHelper.isContainerEmpty(be);
+        if (!empty) {
+            Utils.writeBlockEntityTagToItem(be, stack);
+            Instantlyinteractinternally.debug("[SS] [Stack] 写入 BlockEntityTag sid={} empty=false", sessionId);
+        } else {
+            Utils.clearBlockEntityTag(stack);
+            Instantlyinteractinternally.debug("[SS] [Stack] 清除 BlockEntityTag sid={} empty=true", sessionId);
+        }
+
         boolean dirtyDone = false;
         if (preferMenu != null) {
             for (Slot sl : preferMenu.slots) {
                 if (sl.getItem() == stack) {
-                    markDirtySlot(sl);
+                    sl.setChanged();
+                    if (sl.container != null) sl.container.setChanged();
                     dirtyDone = true;
                     break;
                 }
@@ -136,110 +203,56 @@ public final class SessionService {
         if (!dirtyDone) {
             sp.getInventory().setChanged();
         }
+        res.wrote = true;
+        res.stack = stack;
+        return res;
     }
 
-    private static boolean writeBeTag(BlockEntity be, ItemStack s) {
-        if (be == null || s == null) return false;
-        boolean empty = ContainerHelper.isContainerEmpty(be);
-        if (!empty) {
-            Utils.writeBlockEntityTagToItem(be, s);
-            return true;
-        } else {
-            Utils.clearBlockEntityTag(s);
-            return true;
-        }
-    }
-
-    // 路径1：优先用父容器菜单中的 Slot 写回
-    private static boolean writeBackViaMenuSlot(SessionCtx sc, boolean finalize) {
-        if (sc.be == null || !ContainerHelper.isContainerLike(sc.be)) return false;
-        var slot = findSlotWithSessionInContainer(sc.preferMenu, sc.sessionId);
-        if (slot == null) return false;
-
-        ItemStack s = slot.getItem();
-        Instantlyinteractinternally.debug("[SS] 刷盘活动会话 finalize={} sid={} preferMenu={} foundSlot=true",
-                finalize, sc.sessionId, sc.preferMenu != null ? sc.preferMenu.getClass().getSimpleName() : "null");
-
-        if (writeBeTag(sc.be, s)) {
-            Instantlyinteractinternally.debug("[SS] 写回(菜单Slot) sid={} empty={}", sc.sessionId, ContainerHelper.isContainerEmpty(sc.be));
-            finalizeTagAndMaybeClearMapping(sc, s, finalize);
-            markDirtySlot(slot);
-            return true;
-        }
-        return false;
-    }
-
-    // 路径2：通过“在玩家背包/当前或父菜单搜索栈”写回
-    private static boolean writeBackViaStackSearch(SessionCtx sc, boolean finalize) {
-        if (sc.be == null || !ContainerHelper.isContainerLike(sc.be)) return false;
-
-        ItemStack stack = findStackBySession(sc.sp, sc.sessionId, sc.preferMenu);
-        Instantlyinteractinternally.debug("[SS] 刷盘活动会话 finalize={} sid={} preferMenu={} foundStack={}",
-                finalize, sc.sessionId, sc.preferMenu != null ? sc.preferMenu.getClass().getSimpleName() : "null",
-                !stack.isEmpty());
-
-        if (!stack.isEmpty() && stack.getItem() instanceof BlockItem) {
-            if (writeBeTag(sc.be, stack)) {
-                Instantlyinteractinternally.debug("[SS] 写回(搜索栈) sid={} empty={}", sc.sessionId, ContainerHelper.isContainerEmpty(sc.be));
-                finalizeTagAndMaybeClearMapping(sc, stack, finalize);
-                markDirtyPreferMenuOrInv(sc.sp, sc.preferMenu, stack);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // 路径3：父容器已关闭或未找到栈，直接扫描方块实体的真实库存写回
-    private static boolean writeBackViaBEInventory(SessionCtx sc, boolean finalize) {
-        if (!(sc.be instanceof Container container)) return false;
+    // 路径3：BE 实库存扫描写回并标脏
+    private static WriteBackResult tryWriteViaBEInventory(BlockEntity be, String sessionId) {
+        WriteBackResult res = new WriteBackResult();
+        if (!(be instanceof net.minecraft.world.Container container)) return res;
 
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack s = container.getItem(i);
             if (s.isEmpty() || !s.hasTag()) continue;
-            if (!sc.sessionId.equals(s.getTag().getString("i3_session"))) continue;
+            if (!sessionId.equals(s.getTag().getString("i3_session"))) continue;
 
-            if (writeBeTag(sc.be, s)) {
-                Instantlyinteractinternally.debug("[SS] [BE库存] 写回 sid={} slot={} empty={}",
-                        sc.sessionId, i, ContainerHelper.isContainerEmpty(sc.be));
-                finalizeTagAndMaybeClearMapping(sc, s, finalize);
-                container.setChanged();
-                sc.be.setChanged();
-                return true;
+            boolean empty = ContainerHelper.isContainerEmpty(be);
+            if (!empty) {
+                Utils.writeBlockEntityTagToItem(be, s);
+                Instantlyinteractinternally.debug("[SS] [BE库存] 写入 BlockEntityTag sid={} slot={} empty=false", sessionId, i);
+            } else {
+                Utils.clearBlockEntityTag(s);
+                Instantlyinteractinternally.debug("[SS] [BE库存] 清除 BlockEntityTag sid={} slot={} empty=true", sessionId, i);
             }
+
+            container.setChanged();
+            be.setChanged();
+            res.wrote = true;
+            res.stack = s;
+            break;
         }
-        return false;
+        return res;
     }
 
-    private static void finalizeSessionStackCleanIfNeeded(ServerPlayer sp) {
-        var top = VirtualContainerGuard.getSession(sp);
-        if (top != null && top.isContainerSession) {
-            if (sp.containerMenu != top.containerMenu) {
-                Instantlyinteractinternally.debug("[SS] finalize 后清理失效父容器占位 menu={}",
-                        top.containerMenu != null ? top.containerMenu.getClass().getSimpleName() : "null");
-                VirtualContainerGuard.endCurrentSession(sp);
-            }
+    private static void removeSessionTag(ItemStack stack) {
+        var tag = stack.getTag();
+        if (tag != null) {
+            tag.remove("i3_session");
+            if (tag.isEmpty()) stack.setTag(null);
         }
     }
 
-    public static void flushActiveSession(ServerPlayer sp, boolean finalize) {
-        var sc = resolveSessionCtx(sp);
-        if (sc == null) return;
-
-        boolean handled = writeBackViaMenuSlot(sc, finalize)
-                || writeBackViaStackSearch(sc, finalize)
-                || writeBackViaBEInventory(sc, finalize);
-
-        if (finalize) {
-            VirtualContainerGuard.endCurrentSession(sp);
-            finalizeSessionStackCleanIfNeeded(sp);
-        }
-
-        scheduleForPlayer(sp, () -> sp.containerMenu.broadcastChanges(), "ui/refresh", 0, 1, true);
+    private static class WriteBackResult {
+        boolean wrote = false;
+        ItemStack stack = ItemStack.EMPTY;
     }
 
     // 在容器关闭时，对该容器内所有带 i3_session 的物品逐一落盘并移除标签（仅当成功写回到物品栈时移除映射）
     public static void flushSessionsInContainer(ServerPlayer sp, AbstractContainerMenu container) {
         if (container == null) return;
+
         WorldContextRegistry.maybeLoadContext(sp);
         var ctx = WorldContextRegistry.getContext(sp);
         if (ctx == null) return;
@@ -247,62 +260,71 @@ public final class SessionService {
         var suppressed = VirtualContainerGuard.getSuppressedCloseSessionIds(sp);
         Set<String> handled = new HashSet<>();
         for (Slot slot : container.slots) {
-            if (slot.container instanceof Inventory) continue;
+            if (slot.container instanceof Inventory) {
+                continue;
+            }
 
             ItemStack s = slot.getItem();
             if (s.isEmpty() || !s.hasTag()) continue;
             String sid = s.getTag().getString("i3_session");
             if (sid == null || sid.isEmpty() || !handled.add(sid)) continue;
 
+            // 被抑制：做部分写回，但保留 i3_session 与映射
             if (suppressed.contains(sid)) {
-                handleSuppressedPartialWriteBack(sp, sid, slot);
+                Instantlyinteractinternally.debug("[SS] 关闭刷盘（部分写回，保留会话） sid={} slot={}", sid, slot.index);
+
+                BlockPos pos = ctx.sessionToPos.get(sid);
+                if (pos != null) {
+                    BlockEntity be = ctx.level.getBlockEntity(pos);
+                    if (be != null && ContainerHelper.isContainerLike(be)) {
+                        boolean empty = ContainerHelper.isContainerEmpty(be);
+                        if (!empty) {
+                            Utils.writeBlockEntityTagToItem(be, s);
+                        } else {
+                            Utils.clearBlockEntityTag(s);
+                        }
+                        slot.setChanged();
+                        if (slot.container != null) {
+                            slot.container.setChanged();
+                        }
+                    }
+                }
+                // 注意：不移除 i3_session，不移除 ctx 映射，不结束会话
                 continue;
             }
-            handleFinalizeWriteBack(sp, sid, slot);
-        }
-        sp.containerMenu.broadcastChanges();
-    }
 
-    private static void handleSuppressedPartialWriteBack(ServerPlayer sp, String sid, Slot slot) {
-        Instantlyinteractinternally.debug("[SS] 关闭刷盘（部分写回，保留会话） sid={} slot={}", sid, slot.index);
-
-        var ctx = WorldContextRegistry.getContext(sp);
-        if (ctx == null) return;
-
-        var pos = ctx.sessionToPos.get(sid);
-        if (pos == null) return;
-
-        BlockEntity be = ctx.level.getBlockEntity(pos);
-        if (be == null || !ContainerHelper.isContainerLike(be)) return;
-
-        ItemStack s = slot.getItem();
-        writeBeTag(be, s);
-        markDirtySlot(slot);
-        // 保留 i3_session 与 ctx 映射
-    }
-
-    private static void handleFinalizeWriteBack(ServerPlayer sp, String sid, Slot slot) {
-        var ctx = WorldContextRegistry.getContext(sp);
-        if (ctx != null) {
-            var pos = ctx.sessionToPos.get(sid);
+            // 非抑制：按原逻辑完整写回并清理
+            boolean wroteBack = false;
+            BlockPos pos = ctx.sessionToPos.get(sid);
             if (pos != null) {
                 BlockEntity be = ctx.level.getBlockEntity(pos);
                 if (be != null && ContainerHelper.isContainerLike(be)) {
-                    ItemStack s = slot.getItem();
-                    writeBeTag(be, s);
-                    Instantlyinteractinternally.debug("[SS] 关闭容器写回 sid={} slot={}", sid, slot.index);
-
-                    removeSessionMapping(sp, sid);
-                    VirtualContainerGuard.endSessionById(sp, sid);
-                    var tag = s.getTag();
-                    if (tag != null) {
-                        tag.remove("i3_session");
-                        if (tag.isEmpty()) s.setTag(null);
+                    boolean empty = ContainerHelper.isContainerEmpty(be);
+                    if (!empty) {
+                        Utils.writeBlockEntityTagToItem(be, s);
+                    } else {
+                        Utils.clearBlockEntityTag(s);
                     }
-                    markDirtySlot(slot);
+                    wroteBack = true;
+                    Instantlyinteractinternally.debug("[SS] 关闭容器写回 sid={} slot={}", sid, slot.index);
                 }
             }
+            if (wroteBack) {
+                ctx.sessionToPos.remove(sid);
+                // 写回成功后，同时结束该 sid 的会话，避免会话遗留
+                VirtualContainerGuard.endSessionById(sp, sid);
+            }
+            var tag = s.getTag();
+            if (tag != null) {
+                tag.remove("i3_session");
+                if (tag.isEmpty()) s.setTag(null);
+            }
+            slot.setChanged();
+            if (slot.container != null) {
+                slot.container.setChanged();
+            }
         }
+        sp.containerMenu.broadcastChanges();
     }
 
     private static ItemStack findStackBySession(ServerPlayer sp, String sessionId, AbstractContainerMenu menu) {

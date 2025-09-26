@@ -48,27 +48,8 @@ public final class VirtualContainerGuard {
         var dq = SESSIONS.computeIfAbsent(player.getUUID(), k -> new ArrayDeque<>());
 
         AbstractContainerMenu parent = player.containerMenu;
-        pushParentContainerPlaceholderIfNeeded(dq, player, parent, sessionId, pos);
-
-        Session s = new Session(sessionId, pos);
-        s.parentContainer = parent;
-        s.isContainerSession = false;
-        dq.push(s);
-
-        Instantlyinteractinternally.debug(
-                "[VCG] 开始子会话 id={} pos={} parentMenu={} 玩家={}",
-                sessionId, pos, parent != null ? parent.getClass().getSimpleName() : "null",
-                player.getGameProfile().getName());
-    }
-
-    private static void pushParentContainerPlaceholderIfNeeded(Deque<Session> dq,
-                                                               ServerPlayer player,
-                                                               AbstractContainerMenu parent,
-                                                               String sessionId,
-                                                               BlockPos pos) {
-        if (parent == null) return;
         var top = dq.peekFirst();
-        if (top == null || top.containerMenu != parent || !top.isContainerSession) {
+        if (parent != null && (top == null || top.containerMenu != parent || !top.isContainerSession)) {
             Session parentSess = new Session("__container__:" + sessionId, pos);
             parentSess.parentContainer = null;
             parentSess.containerMenu = parent;
@@ -78,6 +59,15 @@ public final class VirtualContainerGuard {
                     "[VCG] 推入父容器会话占位符 menu={} 玩家={}",
                     parent.getClass().getSimpleName(), player.getGameProfile().getName());
         }
+        Session s = new Session(sessionId, pos);
+        s.parentContainer = parent;
+        s.isContainerSession = false;
+        dq.push(s);
+
+        Instantlyinteractinternally.debug(
+                "[VCG] 开始子会话 id={} pos={} parentMenu={} 玩家={}",
+                sessionId, pos, parent != null ? parent.getClass().getSimpleName() : "null",
+                player.getGameProfile().getName());
     }
 
     public static void endSession(ServerPlayer player) {

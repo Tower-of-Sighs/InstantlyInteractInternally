@@ -29,15 +29,21 @@ public class Utils {
     public static void interactBlockInSandbox(ItemStack stack, ServerPlayer player) {
         if (!(stack.getItem() instanceof BlockItem blockItem)) return;
 
+
         if (stack.getCount() > 1) {
             player.displayClientMessage(Component.translatable("iii.open_multiple_block_denied").withStyle(ChatFormatting.RED), true);
             return;
         }
-
         FakeLevel fake = WorldContextRegistry.getOrCreateLevel(player);
 
         // 仅在非嵌套打开时才清理上一个活动会话
-        if (!isNestedOpen(player)) {
+        boolean nestedOpen = false;
+        var active = VirtualContainerGuard.getSession(player);
+        var currentMenu = player.containerMenu;
+        if (currentMenu != null && !(currentMenu instanceof InventoryMenu)) {
+            nestedOpen = true;
+        }
+        if (!nestedOpen) {
             SessionService.flushActiveSession(player);
         }
 
@@ -45,10 +51,16 @@ public class Utils {
         BlockPos pos = SessionService.ensurePosForSession(player, sessionId);
 
         BlockState target = blockItem.getBlock().defaultBlockState();
-        ensureFakeBlockPlaced(fake, pos, target);
+        if (fake.getBlockState(pos).getBlock() != target.getBlock()) {
+            fake.putBlock(pos, target);
+        }
 
         var be = fake.getBlockEntity(pos);
-        preloadBeIfNeeded(stack, be, pos);
+        if (be != null
+                && ContainerHelper.isContainerEmpty(be)
+                && ContainerHelper.isContainerLike(be)) {
+            applyBlockEntityTagToBE(stack, be, pos);
+        }
 
         ClipContext clipContext = new ClipContext(
                 player.position(),
@@ -59,47 +71,19 @@ public class Utils {
         );
         BlockHitResult traceResult = fake.clip(clipContext);
 
-        MenuProvider provider = tryGetProviderOrUse(target, fake, player, traceResult);
+        MenuProvider provider = target.getMenuProvider(fake, pos);
         if (provider == null) {
+            InteractionResult result = target.use(fake, player, InteractionHand.MAIN_HAND, traceResult);
             return;
         }
 
         stack.getOrCreateTag().putString("i3_session", sessionId);
+
+        // 在真正打开前，抑制 Close 事件对该会话的清理
         VirtualContainerGuard.setSuppressCloseSession(player, sessionId);
 
         SessionService.beginSession(player, sessionId, pos);
         player.openMenu(provider);
-    }
-
-    private static boolean isNestedOpen(ServerPlayer player) {
-        var currentMenu = player.containerMenu;
-        return currentMenu != null && !(currentMenu instanceof InventoryMenu);
-    }
-
-    private static void ensureFakeBlockPlaced(FakeLevel fake, BlockPos pos, BlockState target) {
-        if (fake.getBlockState(pos).getBlock() != target.getBlock()) {
-            fake.putBlock(pos, target);
-        }
-    }
-
-    private static void preloadBeIfNeeded(ItemStack stack, BlockEntity be, BlockPos pos) {
-        if (be != null
-                && ContainerHelper.isContainerEmpty(be)
-                && ContainerHelper.isContainerLike(be)) {
-            applyBlockEntityTagToBE(stack, be, pos);
-        }
-    }
-
-    private static MenuProvider tryGetProviderOrUse(BlockState target,
-                                                    FakeLevel fake,
-                                                    ServerPlayer player,
-                                                    BlockHitResult traceResult) {
-        MenuProvider provider = target.getMenuProvider(fake, player.blockPosition());
-        if (provider == null) {
-            InteractionResult result = target.use(fake, player, InteractionHand.MAIN_HAND, traceResult);
-            return null;
-        }
-        return provider;
     }
 
     public static void consumeItemInstant(Slot slot, ServerPlayer player) {

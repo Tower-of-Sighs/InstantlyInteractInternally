@@ -18,11 +18,60 @@ import net.minecraftforge.common.util.LazyOptional;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public final class FakeLevelAPI {
+    private static final ConcurrentHashMap<UUID, KeyPosProvider> keyPosProviders = new ConcurrentHashMap<>();
+
+    // 全局 KeyStrategy
+    private static volatile KeyStrategy KEY_STRATEGY = DefaultKeyStrategy.INSTANCE;
+
     private FakeLevelAPI() {
+    }
+
+    /**
+     * 设置全局 KeyStrategy。为保证可预测性，请在早期生命周期中设置。
+     * 不允许传入 null。
+     */
+    public static void setGlobalKeyStrategy(KeyStrategy strategy) {
+        if (strategy != null) {
+            KEY_STRATEGY = strategy;
+        }
+    }
+
+    public static KeyStrategy getGlobalKeyStrategy() {
+        return KEY_STRATEGY;
+    }
+
+    public static String computeKey(ItemStack stack) {
+        return KEY_STRATEGY.computeKey(stack);
+    }
+
+    public static String computeBaseKey(ItemStack stack) {
+        return KEY_STRATEGY.computeBaseKey(stack);
+    }
+
+    public static void registerKeyPosProvider(ServerPlayer player, KeyPosProvider provider) {
+        if (player == null || provider == null) return;
+        keyPosProviders.put(player.getUUID(), provider);
+    }
+
+    public static void unregisterKeyPosProvider(ServerPlayer player, KeyPosProvider provider) {
+        if (player == null) return;
+        keyPosProviders.remove(player.getUUID(), provider);
+    }
+
+    public static KeyPosProvider getKeyPosProvider(ServerPlayer player) {
+        if (player == null) return null;
+        return keyPosProviders.get(player.getUUID());
+    }
+
+    public static BlockPos resolveKeyPos(ServerPlayer player, String key) {
+        var p = getKeyPosProvider(player);
+        return (p == null) ? null : p.resolve(player, key);
     }
 
     // 方向侧向物品访问接口：其它模组可实现自己的桥接逻辑

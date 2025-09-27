@@ -1,5 +1,6 @@
 package com.mafuyu404.instantlyinteractinternally.utils.service;
 
+import com.mafuyu404.instantlyinteractinternally.api.FakeLevelAPI;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -41,8 +42,8 @@ public final class TransferService {
         var ctx = WorldContextRegistry.getContext(player);
         if (ctx == null) return;
 
-        String key = DefaultKeyStrategy.INSTANCE.computeKey(placedStack);
-        BlockPos fakePos = ctx.keyToPos.get(key);
+        String key = FakeLevelAPI.computeKey(placedStack);
+        BlockPos fakePos = FakeLevelAPI.resolveKeyPos(player, key);
         if (fakePos == null) return;
 
         var fakeState = ctx.level.getBlockState(fakePos);

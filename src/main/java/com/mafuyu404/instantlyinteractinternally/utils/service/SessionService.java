@@ -7,7 +7,6 @@ import com.mafuyu404.instantlyinteractinternally.utils.VirtualContainerGuard;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -123,7 +122,7 @@ public final class SessionService {
                 }
             }
             ctx.sessionToPos.remove(sessionId);
-            Instantlyinteractinternally.debug("[SS] 完成最终刷盘：移除 sid={} 的映射与标签（若有）", sessionId);
+            Instantlyinteractinternally.debug("[SS] 完成最终刷盘：移除 sid={} 的映射与标签", sessionId);
 
             // 结束当前子会话
             VirtualContainerGuard.endCurrentSession(sp);

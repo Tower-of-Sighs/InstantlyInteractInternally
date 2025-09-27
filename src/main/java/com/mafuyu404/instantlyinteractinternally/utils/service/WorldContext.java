@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class WorldContext {
     public final FakeLevel level;
-    public final Map<String, BlockPos> keyToPos = new ConcurrentHashMap<>();
     public final Map<String, BlockPos> sessionToPos = new ConcurrentHashMap<>();
     public int nextIndex = 0;
 

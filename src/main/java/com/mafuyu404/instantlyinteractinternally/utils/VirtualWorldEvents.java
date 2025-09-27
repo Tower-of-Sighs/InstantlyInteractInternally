@@ -1,7 +1,11 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
 import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
-import com.mafuyu404.instantlyinteractinternally.utils.service.*;
+import com.mafuyu404.instantlyinteractinternally.api.FakeLevelAPI;
+import com.mafuyu404.instantlyinteractinternally.utils.service.SessionService;
+import com.mafuyu404.instantlyinteractinternally.utils.service.StorageService;
+import com.mafuyu404.instantlyinteractinternally.utils.service.TransferService;
+import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContextRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -109,33 +113,25 @@ public class VirtualWorldEvents {
         BlockPos pos = event.getPos();
         var placedState = event.getState();
 
-        var ctx = WorldContextRegistry.getContext(sp);
         ItemStack candidate = ItemStack.EMPTY;
         var main = sp.getMainHandItem();
         var off = sp.getOffhandItem();
-        if (ctx != null) {
-            var mainMatches = (main.getItem() instanceof BlockItem bi && bi.getBlock() == placedState.getBlock());
-            var offMatches = (off.getItem() instanceof BlockItem bj && bj.getBlock() == placedState.getBlock());
+        boolean mainResolvable = !main.isEmpty()
+                && (main.getItem() instanceof BlockItem biMain && biMain.getBlock() == placedState.getBlock())
+                && FakeLevelAPI.resolveKeyPos(sp, FakeLevelAPI.computeKey(main)) != null;
 
-            if (mainMatches && ctx.keyToPos.containsKey(DefaultKeyStrategy.INSTANCE.computeKey(main))) {
-                candidate = main;
-            } else if (offMatches && ctx.keyToPos.containsKey(DefaultKeyStrategy.INSTANCE.computeKey(off))) {
-                candidate = off;
-            } else if (mainMatches) {
-                candidate = main;
-            } else if (offMatches) {
-                candidate = off;
-            }
-        } else {
-            if (main.getItem() instanceof BlockItem bi1 && bi1.getBlock() == placedState.getBlock()) {
-                candidate = main;
-            } else if (off.getItem() instanceof BlockItem bi2 && bi2.getBlock() == placedState.getBlock()) {
-                candidate = off;
-            } else if (main.getItem() instanceof BlockItem) {
-                candidate = main;
-            } else if (off.getItem() instanceof BlockItem) {
-                candidate = off;
-            }
+        boolean offResolvable = !off.isEmpty()
+                && (off.getItem() instanceof BlockItem biOff && biOff.getBlock() == placedState.getBlock())
+                && FakeLevelAPI.resolveKeyPos(sp, FakeLevelAPI.computeKey(off)) != null;
+
+        if (mainResolvable) {
+            candidate = main;
+        } else if (offResolvable) {
+            candidate = off;
+        } else if (main.getItem() instanceof BlockItem) {
+            candidate = main;
+        } else if (off.getItem() instanceof BlockItem) {
+            candidate = off;
         }
 
         if (!candidate.isEmpty()) {

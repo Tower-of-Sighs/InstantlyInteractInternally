@@ -1,5 +1,6 @@
 package com.mafuyu404.instantlyinteractinternally.utils.service;
 
+import com.mafuyu404.instantlyinteractinternally.api.FakeLevelAPI;
 import com.mafuyu404.instantlyinteractinternally.utils.FakeLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,9 +24,12 @@ public final class TickService {
             var ctx = WorldContextRegistry.getContext(sp);
             if (ctx == null) continue;
 
+            var provider = FakeLevelAPI.getKeyPosProvider(sp);
             FakeLevel level = ctx.level;
 
-            tickBlockEntities(level, ctx.keyToPos.entrySet());
+            if (provider != null) {
+                tickBlockEntitiesPositions(level, provider.allPositions(sp));
+            }
 
             tickBlockEntities(level, ctx.sessionToPos.entrySet());
 
@@ -33,21 +37,30 @@ public final class TickService {
         }
     }
 
+    private static void tickBlockEntitiesPositions(FakeLevel level, Iterable<BlockPos> positions) {
+        for (BlockPos pos : positions) {
+            tickBlockEntityAt(level, pos);
+        }
+    }
+
     private static void tickBlockEntities(FakeLevel level, Iterable<? extends Map.Entry<?, BlockPos>> entries) {
         for (Map.Entry<?, BlockPos> entry : entries) {
-            BlockPos pos = entry.getValue();
-            var state = level.getBlockState(pos);
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be != null) {
-                if (be.getLevel() != level) {
-                    be.setLevel(level);
-                }
-                @SuppressWarnings("unchecked")
-                BlockEntityTicker<BlockEntity> ticker =
-                        state.getTicker(level, (BlockEntityType<BlockEntity>) be.getType());
-                if (ticker != null) {
-                    ticker.tick(level, pos, state, be);
-                }
+            tickBlockEntityAt(level, entry.getValue());
+        }
+    }
+
+    private static void tickBlockEntityAt(FakeLevel level, BlockPos pos) {
+        var state = level.getBlockState(pos);
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be != null) {
+            if (be.getLevel() != level) {
+                be.setLevel(level);
+            }
+            @SuppressWarnings("unchecked")
+            BlockEntityTicker<BlockEntity> ticker =
+                    state.getTicker(level, (BlockEntityType<BlockEntity>) be.getType());
+            if (ticker != null) {
+                ticker.tick(level, pos, state, be);
             }
         }
     }

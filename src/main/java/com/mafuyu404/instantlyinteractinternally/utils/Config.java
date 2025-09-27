@@ -1,4 +1,4 @@
-package com.mafuyu404.instantlyinteractinternally.utils.service;
+package com.mafuyu404.instantlyinteractinternally.utils;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
@@ -17,6 +17,15 @@ public final class Config {
     public static final ForgeConfigSpec.BooleanValue ENABLE_ITEM_WHITELIST;
     public static final ForgeConfigSpec.BooleanValue ENABLE_BLOCK_WHITELIST;
 
+    public static final ForgeConfigSpec.BooleanValue ENABLE_USE_PROGRESS;
+    public static final ForgeConfigSpec.DoubleValue PROGRESS_X_RATIO;
+    public static final ForgeConfigSpec.DoubleValue PROGRESS_Y_RATIO;
+    public static final ForgeConfigSpec.IntValue PROGRESS_OUTER_RADIUS;
+    public static final ForgeConfigSpec.IntValue PROGRESS_THICKNESS;
+    public static final ForgeConfigSpec.LongValue PROGRESS_START_COLOR;
+    public static final ForgeConfigSpec.LongValue PROGRESS_END_COLOR;
+    public static final ForgeConfigSpec.BooleanValue PROGRESS_SHOW_COUNTDOWN;
+
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_BLACKLIST;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_BLACKLIST;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_WHITELIST;
@@ -26,7 +35,7 @@ public final class Config {
         ForgeConfigSpec.Builder b = new ForgeConfigSpec.Builder();
 
         b.comment("InstantlyInteractInternally server-side blacklist/whitelist controls")
-         .push("controls");
+                .push("controls");
 
         ENABLE_ITEM_BLACKLIST = b
                 .comment("Enable item blacklist (disallow items in the list)")
@@ -59,6 +68,43 @@ public final class Config {
         BLOCK_WHITELIST = b
                 .comment("Block whitelist: registry names (e.g. minecraft:chest)")
                 .defineList("blockWhitelist", List.of(), o -> o instanceof String);
+
+        b.pop();
+
+        b.comment("Use progress behavior")
+                .push("use_progress");
+
+        ENABLE_USE_PROGRESS = b
+                .comment("Enable vanilla-time use progress for edible/drinkable items (uninterrupted by closing screens)")
+                .define("enableUseProgress", true);
+
+        PROGRESS_X_RATIO = b
+                .comment("Progress ring X position ratio (0.0~1.0)")
+                .defineInRange("xRatio", 0.5D, 0.0D, 1.0D);
+
+        PROGRESS_Y_RATIO = b
+                .comment("Progress ring Y position ratio (0.0~1.0)")
+                .defineInRange("yRatio", 0.76D, 0.0D, 1.0D);
+
+        PROGRESS_OUTER_RADIUS = b
+                .comment("Progress ring outer radius (pixels)")
+                .defineInRange("outerRadius", 16, 6, 64);
+
+        PROGRESS_THICKNESS = b
+                .comment("Progress ring thickness (pixels)")
+                .defineInRange("thickness", 5, 2, 32);
+
+        PROGRESS_START_COLOR = b
+                .comment("Progress ring start color (ARGB integer)")
+                .defineInRange("startColorARGB", 0xCC66CCFFL, 0x00000000L, 0xFFFFFFFFL);
+
+        PROGRESS_END_COLOR = b
+                .comment("Progress ring end color (ARGB integer)")
+                .defineInRange("endColorARGB", 0xCC66FF66L, 0x00000000L, 0xFFFFFFFFL);
+
+        PROGRESS_SHOW_COUNTDOWN = b
+                .comment("Show centered countdown seconds")
+                .define("showCountdown", true);
 
         b.pop();
 

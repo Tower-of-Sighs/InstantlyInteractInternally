@@ -19,6 +19,8 @@ public class NetworkHandler {
     public static void register() {
         int packetId = 0;
         CHANNEL.registerMessage(packetId++, ServerInventoryUse.class, ServerInventoryUse::encode, ServerInventoryUse::decode, ServerInventoryUse::handle);
+        CHANNEL.registerMessage(packetId++, UseProgressStart.class, UseProgressStart::encode, UseProgressStart::decode, UseProgressStart::handle);
+        CHANNEL.registerMessage(packetId++, UseProgressEnd.class, UseProgressEnd::encode, UseProgressEnd::decode, UseProgressEnd::handle);
     }
 
     public static void sendToClient(ServerPlayer player, Object packet) {

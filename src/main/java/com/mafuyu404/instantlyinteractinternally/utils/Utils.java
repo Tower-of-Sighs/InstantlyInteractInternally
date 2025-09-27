@@ -1,8 +1,8 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
-import com.mafuyu404.instantlyinteractinternally.utils.service.Config;
 import com.mafuyu404.instantlyinteractinternally.utils.service.ContainerHelper;
 import com.mafuyu404.instantlyinteractinternally.utils.service.SessionService;
+import com.mafuyu404.instantlyinteractinternally.utils.service.UseProgressTracker;
 import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContextRegistry;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -110,7 +110,16 @@ public class Utils {
             if (!player.canEat(always)) {
                 return;
             }
-        } else if (!(inSlot.getItem() instanceof PotionItem)) {
+            if (Config.ENABLE_USE_PROGRESS.get()) {
+                UseProgressTracker.beginUseFromSlot(player, slot);
+                return;
+            }
+        } else if (inSlot.getItem() instanceof PotionItem) {
+            if (Config.ENABLE_USE_PROGRESS.get()) {
+                UseProgressTracker.beginUseFromSlot(player, slot);
+                return;
+            }
+        } else {
             return;
         }
 

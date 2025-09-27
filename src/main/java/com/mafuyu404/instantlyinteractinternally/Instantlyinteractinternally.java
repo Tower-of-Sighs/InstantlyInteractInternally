@@ -1,7 +1,7 @@
 package com.mafuyu404.instantlyinteractinternally;
 
 import com.mafuyu404.instantlyinteractinternally.network.NetworkHandler;
-import com.mafuyu404.instantlyinteractinternally.utils.service.Config;
+import com.mafuyu404.instantlyinteractinternally.utils.Config;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;

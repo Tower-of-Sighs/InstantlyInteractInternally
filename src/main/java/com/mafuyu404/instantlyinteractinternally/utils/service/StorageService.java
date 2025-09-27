@@ -4,6 +4,7 @@ import net.minecraft.server.MinecraftServer;
 
 import java.util.UUID;
 
+@Deprecated
 public final class StorageService {
     private StorageService() {
     }

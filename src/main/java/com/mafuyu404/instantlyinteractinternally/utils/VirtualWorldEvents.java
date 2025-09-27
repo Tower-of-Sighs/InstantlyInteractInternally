@@ -3,7 +3,6 @@ package com.mafuyu404.instantlyinteractinternally.utils;
 import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
 import com.mafuyu404.instantlyinteractinternally.api.FakeLevelAPI;
 import com.mafuyu404.instantlyinteractinternally.utils.service.SessionService;
-import com.mafuyu404.instantlyinteractinternally.utils.service.StorageService;
 import com.mafuyu404.instantlyinteractinternally.utils.service.TransferService;
 import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContextRegistry;
 import net.minecraft.core.BlockPos;
@@ -28,10 +27,6 @@ public class VirtualWorldEvents {
                 SessionService.flushActiveSession(sp, true);
             }
             VirtualContainerGuard.end(sp);
-            var ctx = WorldContextRegistry.getContext(sp);
-            if (ctx != null) {
-                StorageService.saveContext(sp.getServer(), sp.getUUID(), ctx);
-            }
             WorldContextRegistry.clear(sp);
         }
     }
@@ -82,10 +77,6 @@ public class VirtualWorldEvents {
             VirtualContainerGuard.endCurrentSession(sp);
         }
 
-        var ctx = WorldContextRegistry.getContext(sp);
-        if (ctx != null) {
-            StorageService.saveContext(sp.getServer(), sp.getUUID(), ctx);
-        }
         var inv = sp.getInventory();
         for (int i = 0; i < inv.items.size(); i++) {
             var sItem = inv.items.get(i);

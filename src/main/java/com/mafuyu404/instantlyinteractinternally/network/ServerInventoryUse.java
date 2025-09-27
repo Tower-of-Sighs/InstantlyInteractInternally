@@ -49,11 +49,19 @@ public class ServerInventoryUse {
 
             switch (msg.actionType) {
                 case BLOCK_INTERACT -> {
+                    if (slot.getItem().isEdible()) {
+                        boolean used = Utils.useUsableItemInstant(slot, player);
+                        if (!used) {
+                            Utils.consumeItemInstant(slot, player);
+                        }
+                        return;
+                    }
                     Utils.interactBlockInSandbox(slot.getItem(), player);
                 }
                 case ITEM_USE -> {
                     var stack = slot.getItem();
-                    if (stack.getItem() instanceof BlockItem) {
+                    var item = stack.getItem();
+                    if (item instanceof BlockItem && !stack.isEdible()) {
                         Utils.interactBlockInSandbox(stack, player);
                         return;
                     }

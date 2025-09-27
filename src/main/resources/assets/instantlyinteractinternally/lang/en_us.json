@@ -1,5 +1,7 @@
 {
   "key.instantlyinteractinternally.quick_use": "Quick Use",
   "message.instantlyinteractinternally.same_container_blocked": "Already interacting with the same container type.",
-  "iii.open_multiple_block_denied": "Unable to open multiple blocks"
+  "iii.open_multiple_block_denied": "Unable to open multiple blocks",
+  "iii.item_use_denied": "The item has been disabled.",
+  "iii.block_open_denied": "The block has been disabled."
 }

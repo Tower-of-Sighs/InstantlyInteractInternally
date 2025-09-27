@@ -1,5 +1,6 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
+import com.mafuyu404.instantlyinteractinternally.utils.service.Config;
 import com.mafuyu404.instantlyinteractinternally.utils.service.ContainerHelper;
 import com.mafuyu404.instantlyinteractinternally.utils.service.SessionService;
 import com.mafuyu404.instantlyinteractinternally.utils.service.WorldContextRegistry;
@@ -7,6 +8,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -22,6 +24,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.UUID;
 
@@ -29,6 +32,11 @@ public class Utils {
     public static void interactBlockInSandbox(ItemStack stack, ServerPlayer player) {
         if (!(stack.getItem() instanceof BlockItem blockItem)) return;
 
+        ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(blockItem.getBlock());
+        if (!Config.isBlockAllowed(blockId)) {
+            player.displayClientMessage(Component.translatable("iii.block_open_denied").withStyle(ChatFormatting.RED), true);
+            return;
+        }
 
         if (stack.getCount() > 1) {
             player.displayClientMessage(Component.translatable("iii.open_multiple_block_denied").withStyle(ChatFormatting.RED), true);
@@ -90,6 +98,12 @@ public class Utils {
         ItemStack inSlot = slot.getItem();
         if (inSlot.isEmpty()) return;
 
+        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(inSlot.getItem());
+        if (!Config.isItemAllowed(itemId)) {
+            player.displayClientMessage(Component.translatable("iii.item_use_denied").withStyle(ChatFormatting.RED), true);
+            return;
+        }
+
         if (inSlot.isEdible()) {
             FoodProperties food = inSlot.getFoodProperties(player);
             boolean always = food != null && food.canAlwaysEat();
@@ -129,6 +143,12 @@ public class Utils {
 
         ItemStack inSlot = slot.getItem();
         if (inSlot.isEmpty()) return false;
+
+        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(inSlot.getItem());
+        if (!Config.isItemAllowed(itemId)) {
+            player.displayClientMessage(Component.translatable("iii.item_use_denied").withStyle(ChatFormatting.RED), true);
+            return false;
+        }
 
         Item item = inSlot.getItem();
         if (inSlot.isEdible() || (item instanceof PotionItem && !(item instanceof ThrowablePotionItem))) {

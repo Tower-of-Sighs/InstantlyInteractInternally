@@ -1,9 +1,12 @@
 package com.mafuyu404.instantlyinteractinternally;
 
 import com.mafuyu404.instantlyinteractinternally.network.NetworkHandler;
+import com.mafuyu404.instantlyinteractinternally.utils.service.Config;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
@@ -25,6 +28,6 @@ public class Instantlyinteractinternally {
     public Instantlyinteractinternally() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         NetworkHandler.register();
-//        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 }

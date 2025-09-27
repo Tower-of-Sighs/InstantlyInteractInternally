@@ -1,5 +1,7 @@
 {
   "key.instantlyinteractinternally.quick_use": "快速使用",
   "message.instantlyinteractinternally.same_container_blocked": "已打开相同类型的容器，阻止重复打开。",
-  "iii.open_multiple_block_denied": "无法打开多个方块"
+  "iii.open_multiple_block_denied": "无法打开多个方块",
+  "iii.item_use_denied": "该物品已被禁用",
+  "iii.block_open_denied": "该方块已被禁用"
 }

@@ -1,5 +1,6 @@
 package com.mafuyu404.instantlyinteractinternally.utils.service;
 
+import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
 import com.mafuyu404.instantlyinteractinternally.utils.FakeLevel;
 import com.mafuyu404.instantlyinteractinternally.utils.VirtualWorldStorage;
 import net.minecraft.core.BlockPos;
@@ -36,14 +37,19 @@ public final class WorldContextRegistry {
     }
 
     public static void saveAllAndClear(MinecraftServer server) {
-        // 保存所有玩家的 WorldContext
+        // 保存所有玩家的 WorldContext —— 改为同步保存，避免调度后无 tick 执行
         for (var entry : CONTEXTS.entrySet()) {
             var uuid = entry.getKey();
             var ctx = entry.getValue();
-            StorageService.saveContext(server, uuid, ctx);
+            try {
+                VirtualWorldStorage.save(server, uuid, ctx);
+            } catch (Throwable t) {
+                Instantlyinteractinternally.LOGGER.warn("[WorldContextRegistry] save context failed uuid={}", uuid, t);
+            }
         }
         CONTEXTS.clear();
     }
+
 
     public static BlockPos ensurePosNearPlayer(ServerPlayer player, String key) {
         maybeLoadContext(player);

@@ -1,5 +1,6 @@
 package com.mafuyu404.instantlyinteractinternally.utils;
 
+import com.mafuyu404.instantlyinteractinternally.Instantlyinteractinternally;
 import com.mafuyu404.instantlyinteractinternally.api.FakeLevelAPI;
 import com.mafuyu404.instantlyinteractinternally.api.VirtualLevelListener;
 import com.mafuyu404.instantlyinteractinternally.api.VirtualTransaction;
@@ -92,7 +93,10 @@ public class FakeLevel extends Level {
     // 带分组/延迟/节流/合并的调度
     public void schedule(Runnable r, @Nullable ResourceLocation group, int delayTicks, int throttlePerTick, boolean coalesce) {
         if (r == null) return;
-        long runAt = delegate.getGameTime() + Math.max(0, delayTicks);
+        long now = delegate.getGameTime();
+        long runAt = now + Math.max(0, delayTicks);
+
+
         if (coalesce && group != null) {
             for (ScheduledTask t : scheduledTasks) {
                 if (group.equals(t.group) && !t.executed) {
@@ -106,16 +110,27 @@ public class FakeLevel extends Level {
 
     public int drainTasks(int maxCount) {
         int n = 0;
-        // 先 drain 定时/分组任务（按节流/时间）
         long now = delegate.getGameTime();
+
+        // 每 tick 重置分组计数
         if (lastDrainTick != now) {
             groupTickCount.clear();
             lastDrainTick = now;
         }
+
+
+        // 先 drain 定时/分组任务（按节流/时间）
         Iterator<ScheduledTask> it = scheduledTasks.iterator();
         while (it.hasNext() && (maxCount <= 0 || n < maxCount)) {
             ScheduledTask t = it.next();
-            if (t.executed || t.runAt > now) continue;
+            if (t.executed) {
+                it.remove();
+                continue;
+            }
+            if (t.runAt > now) {
+                // 延迟未到
+                continue;
+            }
             if (t.group != null && t.throttlePerTick > 0) {
                 int used = groupTickCount.getOrDefault(t.group, 0);
                 if (used >= t.throttlePerTick) {
@@ -126,22 +141,28 @@ public class FakeLevel extends Level {
             }
             try {
                 t.r.run();
-            } catch (Throwable ignore) {
+            } catch (Throwable err) {
+                Instantlyinteractinternally.LOGGER.warn("[FakeLevel] scheduled task error", err);
             }
             t.executed = true;
             it.remove();
             n++;
         }
+
         // 再 drain 立即任务
         while (!taskQueue.isEmpty() && (maxCount <= 0 || n < maxCount)) {
             Runnable r = taskQueue.pollFirst();
             if (r != null) {
                 try {
                     r.run();
-                } catch (Throwable t) { /* 避免影响宿主 */ }
+                } catch (Throwable t) {
+                    /* 避免影响宿主 */
+                    Instantlyinteractinternally.LOGGER.warn("[FakeLevel] immediate task error", t);
+                }
                 n++;
             }
         }
+
         return n;
     }
 

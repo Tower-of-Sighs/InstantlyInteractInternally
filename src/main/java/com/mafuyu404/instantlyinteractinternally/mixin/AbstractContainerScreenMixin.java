@@ -23,9 +23,6 @@ public class AbstractContainerScreenMixin extends Screen {
     @Shadow
     @Nullable
     protected Slot hoveredSlot;
-    @Final
-    @Shadow
-    protected AbstractContainerMenu menu;
 
     protected AbstractContainerScreenMixin(Component title) {
         super(title);

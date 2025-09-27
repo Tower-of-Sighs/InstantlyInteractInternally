@@ -12,6 +12,8 @@ public class Instantlyinteractinternally {
 
     public static final String MODID = "instantlyinteractinternally";
     public static final Logger LOGGER = LogUtils.getLogger();
+
+    // 发布时改为false
     public static boolean DEBUG = true;
 
     public static void debug(String fmt, Object... args) {

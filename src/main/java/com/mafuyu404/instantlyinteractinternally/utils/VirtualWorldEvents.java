@@ -78,18 +78,18 @@ public class VirtualWorldEvents {
         }
 
         var inv = sp.getInventory();
-        for (int i = 0; i < inv.items.size(); i++) {
-            var sItem = inv.items.get(i);
-            if (!sItem.isEmpty()) {
-                Utils.clearPendingBind(sItem);
-            }
-        }
-        for (int i = 0; i < inv.offhand.size(); i++) {
-            var sItem = inv.offhand.get(i);
-            if (!sItem.isEmpty()) {
-                Utils.clearPendingBind(sItem);
-            }
-        }
+//        for (int i = 0; i < inv.items.size(); i++) {
+//            var sItem = inv.items.get(i);
+//            if (!sItem.isEmpty()) {
+//                Utils.clearPendingBind(sItem);
+//            }
+//        }
+//        for (int i = 0; i < inv.offhand.size(); i++) {
+//            var sItem = inv.offhand.get(i);
+//            if (!sItem.isEmpty()) {
+//                Utils.clearPendingBind(sItem);
+//            }
+//        }
         inv.setChanged();
         sp.containerMenu.broadcastChanges();
     }

@@ -12,6 +12,8 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class TickService {
     private TickService() {
@@ -27,11 +29,20 @@ public final class TickService {
             var provider = FakeLevelAPI.getKeyPosProvider(sp);
             FakeLevel level = ctx.level;
 
+            Set<BlockPos> positions = new HashSet<>();
             if (provider != null) {
-                tickBlockEntitiesPositions(level, provider.allPositions(sp));
+                for (BlockPos p : provider.allPositions(sp)) {
+                    positions.add(p);
+                }
             }
+            for (Map.Entry<?, BlockPos> e : ctx.sessionToPos.entrySet()) {
+                positions.add(e.getValue());
+            }
+            positions.addAll(level.allBlockEntityPositions());
 
-            tickBlockEntities(level, ctx.sessionToPos.entrySet());
+            tickBlockEntitiesPositions(level, positions);
+
+            FakeLevelAPI.drainTasks(sp, 0);
 
             sp.containerMenu.broadcastChanges();
         }

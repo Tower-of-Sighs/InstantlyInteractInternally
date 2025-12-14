@@ -363,6 +363,10 @@ public class FakeLevel extends Level {
         return be;
     }
 
+    public Collection<BlockPos> allBlockEntityPositions() {
+        return new ArrayList<>(blockEntities.keySet());
+    }
+
     public void loadBlockEntityTag(BlockPos pos, CompoundTag tag) {
         BlockState state = blocks.get(pos);
         if (state == null) return;

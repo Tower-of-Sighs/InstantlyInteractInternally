@@ -7,6 +7,7 @@ import com.mafuyu404.instantlyinteractinternally.utils.VirtualContainerGuard;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -210,7 +211,7 @@ public final class SessionService {
     // 路径3：BE 实库存扫描写回并标脏
     private static WriteBackResult tryWriteViaBEInventory(BlockEntity be, String sessionId) {
         WriteBackResult res = new WriteBackResult();
-        if (!(be instanceof net.minecraft.world.Container container)) return res;
+        if (!(be instanceof Container container)) return res;
 
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack s = container.getItem(i);

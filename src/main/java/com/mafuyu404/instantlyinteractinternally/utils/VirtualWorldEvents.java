@@ -91,7 +91,6 @@ public class VirtualWorldEvents {
 //            }
 //        }
         inv.setChanged();
-        sp.containerMenu.broadcastChanges();
     }
 
     @SubscribeEvent

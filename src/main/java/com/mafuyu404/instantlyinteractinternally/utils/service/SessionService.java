@@ -324,7 +324,6 @@ public final class SessionService {
                 slot.container.setChanged();
             }
         }
-        sp.containerMenu.broadcastChanges();
     }
 
     private static ItemStack findStackBySession(ServerPlayer sp, String sessionId, AbstractContainerMenu menu) {

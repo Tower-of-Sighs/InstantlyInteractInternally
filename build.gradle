@@ -182,7 +182,8 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
+    implementation fg.deobf("curse.maven:sophisticated-core-618298:7328960")
+    implementation fg.deobf("curse.maven:sophisticated-backpacks-422301:7329597")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
